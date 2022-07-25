@@ -3,89 +3,60 @@ package com.dehys.regenblocks;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.World;
+import com.dehys.regenblocks.events.BlockBreak;
+import com.dehys.regenblocks.hooks.GriefPreventionHook;
+import com.dehys.regenblocks.hooks.WorldGuardHook;
+import com.dehys.regenblocks.modules.RegenBlock;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 
 public class Plugin extends JavaPlugin{
 
-    static List<RegenBlock> regenBlocks;
+    public static List<RegenBlock> regenBlocks;
 
-    List<String> recordedMaterials;
-    List<World> worlds;
-    Material replacementBlock;
+    public static PluginManager pluginManager;
+    public static Plugin getPlugin;
+    public static Clock getClock;
+    public static JsonHandler jsonHandler;
 
-    private static long TICK_TIME;
-    private Timer timer;
+    public static WorldGuardHook worldGuardHook;
+    public static GriefPreventionHook griefPreventionHook;
 
     public void onEnable() {
-
-        //Timer (BukkitRunnable but more specific)
-        timer = new Timer();
-        timer.runTaskTimer(this, 0, 1);
-
-        //Regenerating blocks list
+        jsonHandler = new JsonHandler().initialize();
+        getPlugin = this;
+        pluginManager = getServer().getPluginManager();
         regenBlocks = new ArrayList<>();
 
+        initializeEvents();
+        initializeHooks();
 
-        //Configuration
-        recordedMaterials = new ArrayList<>();
-        worlds = new ArrayList<>();
-
-        getConfig().options().copyDefaults(true);
-        saveConfig();
-
-        getConfig().getStringList("recordedMaterials").stream().forEach(
-                material -> recordedMaterials.add(material.toString()));
-
-
-
-        getConfig().getStringList("worlds").stream().forEach(
-                world -> worlds.add(
-                        Bukkit.getWorld(world.toString())
-                ));
-
-
-        replacementBlock = Material.matchMaterial(getConfig().getString("replacementBlock"));
-        if(replacementBlock == null) {
-            replacementBlock = Material.BEDROCK;
-        }
-
-
-        //Events
-        getServer().getPluginManager().registerEvents(new BlockBroke(this), this);
+        getClock = initializeClock();
     }
 
     public void onDisable() {
-
-        timer.cancel();
-        timer = null;
-
+        getClock.cancel();
         for (RegenBlock rb : regenBlocks) {
             rb.regenerate();
         }
     }
 
-    static long currentTickTime() {
-        return TICK_TIME;
+    public void initializeHooks(){
+        if (pluginManager.getPlugin("WorldGuard") != null){
+            worldGuardHook = new WorldGuardHook().Initialize();
+        } else if (pluginManager.getPlugin("GriefPrevention") != null){
+            griefPreventionHook = new GriefPreventionHook().Initialize();
+        } else {
+            System.out.println("[RegenBlocks] Not using WorldGuard nor GriefPrevention.");
+        }
     }
 
-    private class Timer extends BukkitRunnable {
+    public Clock initializeClock(){
+        return new Clock();
+    }
 
-        @Override
-        public void run() {
-
-            TICK_TIME++;
-
-            for (RegenBlock rb : regenBlocks) {
-                if(rb.getRegenTime() == currentTickTime()) {
-                    rb.regenerate();
-                }
-            }
-        }
-
+    public void initializeEvents(){
+        pluginManager.registerEvents(new BlockBreak(this), this);
     }
 
 }
